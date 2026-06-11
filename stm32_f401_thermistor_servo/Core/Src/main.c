@@ -19,6 +19,7 @@
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
 #include "adc.h"
+#include "tim.h"
 #include "usart.h"
 #include "gpio.h"
 
@@ -27,6 +28,7 @@
 #include <string.h>
 #include <stdio.h>
 #include "thermistor.h"
+#include "servo.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -92,6 +94,7 @@ int main(void)
   MX_GPIO_Init();
   MX_USART1_UART_Init();
   MX_ADC1_Init();
+  MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
   char header[] = "time_ms,adc_raw,adc_filtered,temp_norm\r\n";
   HAL_UART_Transmit(&huart1, (uint8_t*)header, strlen(header), HAL_MAX_DELAY);
@@ -101,6 +104,26 @@ int main(void)
 
   uint32_t initial_adc = Thermistor_ReadAdcRaw(&hadc1);
   Thermistor_Init(&thermistor, (float)initial_adc, 0.1f);
+
+  Servo_t servo;
+
+  Servo_Init(
+      &servo,
+      &htim2,
+      TIM_CHANNEL_2,
+      0.0f,
+      180.0f,
+      1000.0f,
+      2000.0f
+  );
+
+
+  Servo_Start(&servo);
+
+  float servo_angle = 60.0f;
+  uint8_t overheat_state = 0;
+
+  Servo_SetAngle(&servo, servo_angle);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -111,29 +134,54 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
+
+
 	  uint32_t time_ms = HAL_GetTick();
 
 	  uint32_t adc_raw = Thermistor_ReadAdcRaw(&hadc1);
 	  float adc_filtered = Thermistor_UpdateFilter(&thermistor, adc_raw);
 	  float temp_norm = Thermistor_GetTempNorm(adc_filtered);
 
+
+	  const float TEMP_HIGH = 0.53f;
+	  const float TEMP_LOW  = 0.50f;
+
+	  const float SERVO_NEAR_ANGLE = 40.0f;
+	  const float SERVO_AWAY_ANGLE = 140.0f;
+
+	  if (temp_norm > TEMP_HIGH)
+	  {
+	      overheat_state = 1;
+	      servo_angle = SERVO_AWAY_ANGLE;
+	  }
+	  else if (temp_norm < TEMP_LOW)
+	  {
+	      overheat_state = 0;
+	      servo_angle = SERVO_NEAR_ANGLE;
+	  }
+
+	  Servo_SetAngle(&servo, servo_angle);
+
+
 	  char msg[128];
 	  snprintf(
 	      msg,
 	      sizeof(msg),
-	      "%lu,%lu,%.2f,%.4f\r\n",
+	      "%lu,%lu,%.2f,%.4f,%.1f,%u\r\n",
 	      time_ms,
 	      adc_raw,
 	      adc_filtered,
-	      temp_norm
+	      temp_norm,
+	      servo_angle,
+	      overheat_state
 	  );
 	  HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
 
 
 	  HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
 	  HAL_Delay(100);
-  /* USER CODE END 3 */
   }
+  /* USER CODE END 3 */
 }
 
 /**
