@@ -1,0 +1,3 @@
+../Core/Src/control.c:9:6:ThresholdControl_Init	1
+../Core/Src/control.c:27:7:ThresholdControl_Update	3
+../Core/Src/control.c:43:16:ThresholdControl_GetState	1

@@ -29,6 +29,7 @@
 #include <stdio.h>
 #include "thermistor.h"
 #include "servo.h"
+#include "control.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -120,10 +121,16 @@ int main(void)
 
   Servo_Start(&servo);
 
-  float servo_angle = 60.0f;
-  uint8_t overheat_state = 0;
+  ThresholdControl_t threshold_control;
+  ThresholdControl_Init(
+      &threshold_control,
+      0.56f,   // temp_high
+      0.50f,   // temp_low
+      40.0f,   // servo_near_angle
+      140.0f   // servo_away_angle
+  );
 
-  Servo_SetAngle(&servo, servo_angle);
+  Servo_SetAngle(&servo, 40.0f);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -141,26 +148,12 @@ int main(void)
 	  uint32_t adc_raw = Thermistor_ReadAdcRaw(&hadc1);
 	  float adc_filtered = Thermistor_UpdateFilter(&thermistor, adc_raw);
 	  float temp_norm = Thermistor_GetTempNorm(adc_filtered);
-
-
-	  const float TEMP_HIGH = 0.53f;
-	  const float TEMP_LOW  = 0.50f;
-
-	  const float SERVO_NEAR_ANGLE = 40.0f;
-	  const float SERVO_AWAY_ANGLE = 140.0f;
-
-	  if (temp_norm > TEMP_HIGH)
-	  {
-	      overheat_state = 1;
-	      servo_angle = SERVO_AWAY_ANGLE;
-	  }
-	  else if (temp_norm < TEMP_LOW)
-	  {
-	      overheat_state = 0;
-	      servo_angle = SERVO_NEAR_ANGLE;
-	  }
+	  float servo_angle = ThresholdControl_Update(&threshold_control, temp_norm);
 
 	  Servo_SetAngle(&servo, servo_angle);
+
+	  ControlState_t state = ThresholdControl_GetState(&threshold_control);
+
 
 
 	  char msg[128];
@@ -173,7 +166,7 @@ int main(void)
 	      adc_filtered,
 	      temp_norm,
 	      servo_angle,
-	      overheat_state
+	      (uint8_t)state
 	  );
 	  HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
 
