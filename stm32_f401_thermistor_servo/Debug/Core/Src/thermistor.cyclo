@@ -1,0 +1,5 @@
+../Core/Src/thermistor.c:12:14:clamp_float	3
+../Core/Src/thermistor.c:27:6:Thermistor_Init	1
+../Core/Src/thermistor.c:33:10:Thermistor_ReadAdcRaw	2
+../Core/Src/thermistor.c:46:7:Thermistor_UpdateFilter	1
+../Core/Src/thermistor.c:52:7:Thermistor_GetTempNorm	1

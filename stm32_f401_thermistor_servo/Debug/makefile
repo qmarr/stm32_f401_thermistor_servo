@@ -61,7 +61,7 @@ main-build: stm32_f401_thermistor_servo.elf secondary-outputs
 
 # Tool invocations
 stm32_f401_thermistor_servo.elf stm32_f401_thermistor_servo.map: $(OBJS) $(USER_OBJS) S:\Programming\emb_files\projects\stm32_f401_thermistor_servo\stm32_f401_thermistor_servo\STM32F401CCUX_FLASH.ld makefile objects.list $(OPTIONAL_TOOL_DEPS)
-	arm-none-eabi-gcc -o "stm32_f401_thermistor_servo.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"S:\Programming\emb_files\projects\stm32_f401_thermistor_servo\stm32_f401_thermistor_servo\STM32F401CCUX_FLASH.ld" --specs=nosys.specs -Wl,-Map="stm32_f401_thermistor_servo.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -Wl,--start-group -lc -lm -Wl,--end-group
+	arm-none-eabi-gcc -o "stm32_f401_thermistor_servo.elf" @"objects.list" $(USER_OBJS) $(LIBS) -mcpu=cortex-m4 -T"S:\Programming\emb_files\projects\stm32_f401_thermistor_servo\stm32_f401_thermistor_servo\STM32F401CCUX_FLASH.ld" --specs=nosys.specs -Wl,-Map="stm32_f401_thermistor_servo.map" -Wl,--gc-sections -static --specs=nano.specs -mfpu=fpv4-sp-d16 -mfloat-abi=hard -mthumb -u _printf_float -Wl,--start-group -lc -lm -Wl,--end-group
 	@echo 'Finished building target: $@'
 	@echo ' '
 
