@@ -30,6 +30,7 @@
 #include "thermistor.h"
 #include "servo.h"
 #include "control.h"
+#include "pid.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -97,14 +98,23 @@ int main(void)
   MX_ADC1_Init();
   MX_TIM2_Init();
   /* USER CODE BEGIN 2 */
-  char header[] = "time_ms,adc_raw,adc_filtered,temp_norm\r\n";
+  char header[] = "time_ms,target_temp,temp_norm,error,controller_output,servo_angle,adc_raw,adc_filtered\r\n";
   HAL_UART_Transmit(&huart1, (uint8_t*)header, strlen(header), HAL_MAX_DELAY);
 
+  const float TEMP_TARGET_NORM = 0.53f;
+  const float EMERGENCY_TEMP_NORM = 0.62f;
+
+  const float SERVO_NEAR_ANGLE = 10.0f;
+  const float SERVO_AWAY_ANGLE = 170.0f;
+  const float SERVO_RANGE = SERVO_AWAY_ANGLE - SERVO_NEAR_ANGLE;
+
+
+  const float CONTROL_DT_SEC = 0.2f;
 
   Thermistor_t thermistor;
 
   uint32_t initial_adc = Thermistor_ReadAdcRaw(&hadc1);
-  Thermistor_Init(&thermistor, (float)initial_adc, 0.1f);
+  Thermistor_Init(&thermistor, (float)initial_adc, 0.25f);
 
   Servo_t servo;
 
@@ -114,23 +124,38 @@ int main(void)
       TIM_CHANNEL_2,
       0.0f,
       180.0f,
-      1000.0f,
-      2000.0f
+      500.0f,
+      2500.0f
   );
 
 
   Servo_Start(&servo);
 
+  PID_t pid;
+
+  PID_Init(
+      &pid,
+      1200.0f,       // Kp
+      5.0f,         // Ki
+      0.0f,         // Kd
+      0.0f,         // output_min
+      SERVO_RANGE,  // output_max
+      -1.0f,        // integral_min
+      1.0f          // integral_max
+  );
+
   ThresholdControl_t threshold_control;
   ThresholdControl_Init(
       &threshold_control,
-      0.56f,   // temp_high
+      0.53f,   // temp_high
       0.50f,   // temp_low
-      40.0f,   // servo_near_angle
-      140.0f   // servo_away_angle
+      10.0f,   // servo_near_angle
+      170.0f   // servo_away_angle
   );
 
-  Servo_SetAngle(&servo, 40.0f);
+  Servo_SetAngle(&servo, 10.0f);
+
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -148,31 +173,49 @@ int main(void)
 	  uint32_t adc_raw = Thermistor_ReadAdcRaw(&hadc1);
 	  float adc_filtered = Thermistor_UpdateFilter(&thermistor, adc_raw);
 	  float temp_norm = Thermistor_GetTempNorm(adc_filtered);
-	  float servo_angle = ThresholdControl_Update(&threshold_control, temp_norm);
+
+	  float error = temp_norm - TEMP_TARGET_NORM;
+
+	  float controller_output = PID_Update(&pid, error, CONTROL_DT_SEC);
+
+	  float servo_angle = SERVO_NEAR_ANGLE + controller_output;
+	  uint8_t emergency_state = 0;
+
+	  /*
+	   * Emergency override:
+	   * If temperature is clearly too high, move away immediately.
+	   */
+	  if (temp_norm > EMERGENCY_TEMP_NORM)
+	  {
+	      servo_angle = SERVO_AWAY_ANGLE;
+	      controller_output = SERVO_RANGE;
+	      emergency_state = 1;
+	  }
 
 	  Servo_SetAngle(&servo, servo_angle);
 
-	  ControlState_t state = ThresholdControl_GetState(&threshold_control);
+	  char msg[180];
 
-
-
-	  char msg[128];
 	  snprintf(
 	      msg,
 	      sizeof(msg),
-	      "%lu,%lu,%.2f,%.4f,%.1f,%u\r\n",
+	      "%lu,%.4f,%.4f,%.4f,%.2f,%.2f,%u,%lu,%.2f\r\n",
 	      time_ms,
-	      adc_raw,
-	      adc_filtered,
+	      TEMP_TARGET_NORM,
 	      temp_norm,
+	      error,
+	      controller_output,
 	      servo_angle,
-	      (uint8_t)state
+	      emergency_state,
+	      adc_raw,
+	      adc_filtered
 	  );
+
 	  HAL_UART_Transmit(&huart1, (uint8_t*)msg, strlen(msg), HAL_MAX_DELAY);
 
 
 	  HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
-	  HAL_Delay(100);
+	  HAL_Delay(50);
   }
   /* USER CODE END 3 */
 }
